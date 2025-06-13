@@ -1,0 +1,8 @@
+# MongoDB connection URI
+MONGO_URI=mongodb+srv://<username>:<password>@<cluster-address>/<dbname>?retryWrites=true&w=majority&appName=taskManager
+
+# JWT secret for signing and verifying tokens
+JWT_SECRET=<your_jwt_secret_key>
+
+# Port your server will listen on
+PORT=<your_port_number>
