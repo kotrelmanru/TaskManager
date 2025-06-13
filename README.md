@@ -10,7 +10,6 @@ Database: MongoDB
 
 Autentikasi: JWT
 
-demo aplikasi dapat dilihat di link berikut : https://www.youtube.com/watch?v=Kyh3FMhe0cs
 
 Instalasi
 
