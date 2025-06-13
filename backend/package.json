@@ -1,5 +1,5 @@
 {
-  "name": "expense-tracker-backend",
+  "name": "taskmanager",
   "version": "1.0.0",
   "description": "",
   "main": "server.js",

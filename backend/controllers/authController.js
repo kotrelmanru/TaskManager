@@ -1,98 +1,95 @@
-const User = require("../models/User");
+/* controllers/authController.js */
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
-// Generate JWT Token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-};
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 
-// Register User (tanpa password, tanpa upload image)
+// Register with password
 exports.registerUser = async (req, res) => {
-  const { name, username, preferred_timezone } = req.body;
-
-  // Validasi field wajib
-  if (!name || !username || !preferred_timezone) {
-    return res.status(400).json({ message: "All fields are required" });
-  }
-
   try {
-    // Cek username sudah ada?
-    const existingUser = await User.findOne({ username });
-    if (existingUser) {
-      return res.status(400).json({ message: "Username already in use" });
+    const { name, username, password, preferred_timezone } = req.body;
+    // Validasi password
+    if (!password || password.length < 8) {
+      return res.status(400).json({ message: 'Password minimal 8 karakter' });
     }
-
-    // Buat user
-    const user = await User.create({
-      name,
-      username,
-      preferred_timezone,
-    });
-
-    // Response tanpa password
+    // Cek ketersediaan username
+    const existing = await User.findOne({ username });
+    if (existing) {
+      return res.status(400).json({ message: 'Username sudah terpakai' });
+    }
+    // Buat user baru
+    const user = new User({ name, username, password, preferred_timezone });
+    await user.save();
+    // Generate JWT
+    const payload = { id: user.id, username: user.username };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    // Kirim respons termasuk user info
     res.status(201).json({
-      id: user.id,
+      token,
+      expiresIn: JWT_EXPIRES_IN,
       user: {
         id: user.id,
         name: user.name,
         username: user.username,
         preferred_timezone: user.preferred_timezone,
       },
-      token: generateToken(user.id),
     });
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Error registering user", error: err.message });
+    res.status(500).json({ error: err.message });
   }
 };
 
-// Login User hanya dengan username
+// Login requires password
 exports.loginUser = async (req, res) => {
-  const { username } = req.body;
-  if (!username) {
-    return res.status(400).json({ message: "Username is required" });
-  }
-
   try {
-    const user = await User.findOne({ username });
+    const { username, password } = req.body;
+    // Cari user dan sertakan password
+    const user = await User.findOne({ username }).select('+password');
     if (!user) {
-      return res.status(400).json({ message: "Invalid credentials" });
+      return res.status(404).json({ message: 'User tidak ditemukan' });
     }
-
-    res.status(200).json({
-      id: user.id,
+    // Verifikasi password
+    const isValid = await user.comparePassword(password);
+    if (!isValid) {
+      return res.status(401).json({ message: 'Password salah' });
+    }
+    // Generate JWT
+    const payload = { id: user.id, username: user.username };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    // Kirim respons termasuk user info
+    res.json({
+      token,
+      expiresIn: JWT_EXPIRES_IN,
       user: {
         id: user.id,
         name: user.name,
         username: user.username,
         preferred_timezone: user.preferred_timezone,
       },
-      token: generateToken(user.id),
     });
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Error logging in user", error: err.message });
+    res.status(500).json({ error: err.message });
   }
 };
 
-// Get User Info
+// Get profile user
 exports.getUserInfo = async (req, res) => {
   try {
-    // req.user.id diassign oleh middleware protect dari JWT payload
-    const user = await User.findOne({ id: req.user.id }).select(
-      "-_id -__v"
-    );
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.status(200).json(user);
+    const user = await User.findOne({ id: req.user.id }).select('-password -_id');
+    if (!user) return res.status(404).json({ message: 'User tidak ditemukan' });
+    res.json(user);
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Error fetching user info", error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Get all users (for participant selection)
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find().select('id name username preferred_timezone');
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
